@@ -66,9 +66,24 @@ class Controls:
     self.sm.update(15)
     if self.sm.updated["extrinsicsCalibration"]:
       self.pose_calibrator.feed_extrinsics_calibration(self.sm['extrinsicsCalibration'])
+    device_motion = None
     if self.sm.updated["deviceMotion"]:
-      device_motion = Pose.from_device_motion(self.sm['deviceMotion'])
-      self.calibrated_pose = self.pose_calibrator.build_calibrated_pose(device_motion)
+      device_motion = self.sm['deviceMotion']
+      pose = Pose.from_device_motion(device_motion)
+      self.calibrated_pose = self.pose_calibrator.build_calibrated_pose(pose)
+    # Feed the torque controller the calibrated IMU yaw rate (rad/s) for the
+    # low-speed curvature blend. Only while deviceMotion is alive and the pose
+    # is valid (same gate as torqued); otherwise None so the blend stays off
+    # (pure vehicle-model curvature).
+    if hasattr(self.LaC, 'yaw_rate'):
+      if (device_motion is not None and self.sm.alive["deviceMotion"] and
+          getattr(self, 'calibrated_pose', None) is not None
+          and self.pose_calibrator.calib_valid
+          and device_motion.angularVelocityDevice.valid and device_motion.orientationNED.valid
+          and device_motion.inputsOK and device_motion.sensorsOK and device_motion.posenetOK):
+        self.LaC.yaw_rate = float(self.calibrated_pose.angular_velocity.yaw)
+      else:
+        self.LaC.yaw_rate = None
 
   def state_control(self):
     CS = self.sm['carState']
