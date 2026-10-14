@@ -16,10 +16,11 @@ SMOOTH_RC = 0.25  # seconds
 MATCH_DISTANCE = 1.5  # meters a lane line can move between frames and still be the same line
 OUTER_LINE_PROB = 0.3  # the outer lines only show when the model sees a lane there
 LANE_CHANGE_LENGTH = 0.5  # part of the arrow the lane change crosses over in
-COAST_ACCEL = 0.25  # m/s^2 below which the path stays solid
-FULL_ACCEL = 1.0  # m/s^2 where the path is fully broken up
+PULSE_ON_ACCEL = 0.15  # m/s^2, slight accel or braking already pulses
+PULSE_OFF_ACCEL = 0.1  # back to solid below this, the gap keeps it from flickering
+FULL_ACCEL = 1.5  # m/s^2 where the bands flow fastest
 PULSE_PERIOD = 44  # px from one bright band to the next
-PULSE_SPEED = 70  # px/s the bands flow at full accel, slower with less
+PULSE_SPEEDS = (20.0, 100.0)  # px/s the bands flow at PULSE_ON_ACCEL and FULL_ACCEL
 
 PATH_WIDTH = 10
 LANE_WIDTH = 3
@@ -49,6 +50,14 @@ def _effort_color(base: rl.Color, effort: float) -> rl.Color:
   if effort < HIGH_EFFORT:
     return _blend(base, ORANGE, (effort - HIGH_EFFORT + 0.1) / 0.1)
   return _blend(ORANGE, RED, (effort - HIGH_EFFORT) / (1 - HIGH_EFFORT))
+
+
+def pulse_on(pulsing: bool, accel: float) -> bool:
+  return abs(accel) > (PULSE_OFF_ACCEL if pulsing else PULSE_ON_ACCEL)
+
+
+def pulse_speed(accel: float) -> float:
+  return float(np.interp(abs(accel), (PULSE_ON_ACCEL, FULL_ACCEL), PULSE_SPEEDS))
 
 
 def _strip(px: np.ndarray, py: np.ndarray, width: float, color: rl.Color):
@@ -89,6 +98,7 @@ class ArrowView(Widget):
     self._lead_alpha = 0.0
     self._accel = 0.0
     self._phase = 0.0
+    self._pulsing = False
 
   def _smooth(self, old, new):
     return old + (new - old) * self._k
@@ -137,8 +147,9 @@ class ArrowView(Widget):
 
     # the bands flow toward the car accelerating, away from it braking, faster the harder
     self._accel = self._smooth(self._accel, sm['carState'].aEgo)
-    flow = PULSE_SPEED * self._broken()
-    self._phase += np.sign(self._accel) * flow / gui_app.target_fps
+    self._pulsing = pulse_on(self._pulsing, self._accel)
+    if self._pulsing:
+      self._phase += np.sign(self._accel) * pulse_speed(self._accel) / gui_app.target_fps
 
     lead = None
     if sm.alive['radarState'] and sm['radarState'].leadOne.present:
@@ -151,16 +162,13 @@ class ArrowView(Widget):
     else:
       self._lead_alpha = self._smooth(self._lead_alpha, 0.0)
 
-  def _broken(self) -> float:
-    return float(np.clip((abs(self._accel) - COAST_ACCEL) / (FULL_ACCEL - COAST_ACCEL), 0.0, 1.0))
-
   def _draw_path(self, px: np.ndarray, py: np.ndarray, color: rl.Color):
     # solid coasting, accelerating or braking the path dims and bright bands flow along it
-    t = self._broken()
-    _strip(px, py, PATH_WIDTH, _blend(color, rl.Color(color.r, color.g, color.b, 40), t))
-    band = rl.Color(color.r, color.g, color.b, int(255 * t))
-    if band.a < 3:
+    if not self._pulsing:
+      _strip(px, py, PATH_WIDTH, color)
       return
+    _strip(px, py, PATH_WIDTH, rl.Color(color.r, color.g, color.b, 40))
+    band = color
     s = np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(px), np.diff(py)))])
     radius = PATH_WIDTH / 2
     for start in np.arange(-(self._phase % PULSE_PERIOD), s[-1], PULSE_PERIOD):
