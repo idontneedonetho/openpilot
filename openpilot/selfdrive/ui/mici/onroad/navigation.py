@@ -9,16 +9,11 @@ from openpilot.selfdrive.navigation.renderer import EGO, ROUTE_INTENSITY, SIZE
 from openpilot.selfdrive.ui.mici.onroad.cameraview import CONNECTION_RETRY_INTERVAL
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import FontWeight, TextAlignmentVertical
-from openpilot.system.ui.lib.shader_polygon import draw_polygon
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.label import gui_label
 
 STALE_SECONDS = 3
 MARKER_MARGIN = 18  # pixels kept below the ego so its marker stays visible
-PLAN_START_M = 12.0  # starts past the ego marker's tip
-PLAN_LENGTH_M = 90.0
-PLAN_WIDTH = 6  # pixels
-PLAN_COLOR = rl.Color(255, 150, 40, 255)
 
 # Recolor the model's grayscale frame for people: dim the white roads and make the grey route pop.
 MAP_COLORS = np.repeat(np.round(np.arange(256) * 0.45).astype(np.uint8)[:, None], 3, axis=1)
@@ -96,30 +91,6 @@ class NavigationPanel(Widget):
     height = min(SIZE, rect.height / scale)
     source = rl.Rectangle(0, min(SIZE - height, max(0, EGO[1] + MARKER_MARGIN - height)), SIZE, height)
     rl.draw_texture_pro(self._texture, source, rl.Rectangle(rect.x, rect.y, rect.width, height * scale), rl.Vector2(0, 0), 0, rl.WHITE)
-    self._draw_plan(rl.Vector2(rect.x + EGO[0] * scale, rect.y + (EGO[1] - source.y) * scale), scale)
-
-  def _draw_plan(self, ego: rl.Vector2, scale: float):
-    """The model's planned path. The map is route-up at 1 m per pixel, so plan meters map onto it."""
-    model = ui_state.sm['modelV2']
-    if not ui_state.sm.alive['modelV2'] or len(model.position.x) < 2:
-      return
-    xs, ys = np.array(model.position.x), np.array(model.position.y)
-    # resample every meter along the path so the far, sparse plan points don't show as corners
-    along = np.r_[0, np.cumsum(np.hypot(np.diff(xs), np.diff(ys)))]
-    s = np.arange(PLAN_START_M, min(along[-1], PLAN_LENGTH_M), 1.0)
-    if len(s) < 2:
-      return
-    # plan frame is x forward, y right
-    px, py = ego.x + np.interp(s, along, ys) * scale, ego.y - np.interp(s, along, xs) * scale
-    tx, ty = np.gradient(px), np.gradient(py)
-    norm = np.hypot(tx, ty)
-    nx, ny = -ty / norm * PLAN_WIDTH / 2, tx / norm * PLAN_WIDTH / 2
-    # left edge first, then the right edge back, so the strip faces the camera
-    points = np.concatenate([np.stack([px - nx, py - ny], axis=1), np.stack([px + nx, py + ny], axis=1)[::-1]]).astype(np.float32)
-    lo, hi = points.min(axis=0), points.max(axis=0)
-    draw_polygon(rl.Rectangle(lo[0], lo[1], hi[0] - lo[0], hi[1] - lo[1]), points, PLAN_COLOR)
-    for i in (0, -1):  # round caps
-      rl.draw_circle_v(rl.Vector2(px[i], py[i]), PLAN_WIDTH / 2, PLAN_COLOR)
 
   def _unload_texture(self):
     if self._texture:
