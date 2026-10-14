@@ -6,7 +6,6 @@ import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.selfdrive.navigation.geocode import Place
 from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, pick_place, picker_visible, saved_position
-from openpilot.selfdrive.ui.mici.onroad.navigation import plan_rotation
 from openpilot.selfdrive.ui.ui_state import ui_state
 
 
@@ -57,13 +56,3 @@ def test_saved_position_from_ubloxd():
   assert saved_position(msg.to_bytes()) == pytest.approx((32.75, -117.19))
   assert saved_position(None) is None
   assert saved_position(b'{"latitude": 32.75}') is None  # the old json format
-
-
-@pytest.mark.parametrize("chord, tangent, course, rotation", [
-  (0, 0, None, 0),        # straight road: car frame and map frame agree
-  (10, 40, None, 30),     # into a turn the map heads along the chord, the car along the road at it
-  (350, 20, None, 30),    # across north
-  (10, 40, 25, 15),       # a trusted gps course wins
-])
-def test_plan_rotation(chord, tangent, course, rotation):
-  assert plan_rotation(chord, tangent, course) == pytest.approx(rotation)

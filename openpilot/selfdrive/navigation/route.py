@@ -60,9 +60,9 @@ class RouteTracker:
     self.progress = max(self.progress, self.distance[segment] + along * (self.distance[segment + 1] - self.distance[segment]))
     return self.progress
 
-  def pose(self, progress: float, half_window: float = HEADING_HALF_WINDOW) -> tuple[float, float, float]:
-    """(longitude, latitude, bearing) on the route at a progress, headed along the chord, +-50m by default."""
-    ends = np.clip([progress - half_window, progress, progress + half_window], 0, self.distance[-1])
+  def pose(self, progress: float) -> tuple[float, float, float]:
+    """(longitude, latitude, bearing) on the route at a progress, headed along the +-50m chord."""
+    ends = np.clip([progress - HEADING_HALF_WINDOW, progress, progress + HEADING_HALF_WINDOW], 0, self.distance[-1])
     (lon0, lon, lon1), (lat0, lat, lat1) = (np.interp(ends, self.distance, self.route[:, axis]) for axis in (0, 1))
     bearing = np.degrees(np.arctan2((lon1 - lon0) * np.cos(np.radians(lat0)), lat1 - lat0)) % 360
     return float(lon), float(lat), float(bearing)
