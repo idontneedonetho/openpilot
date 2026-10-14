@@ -1,9 +1,9 @@
-import json
 import threading
 
 import pyray as rl
 import requests
 
+from openpilot.cereal import log
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.navigation.geocode import Place, add_route_summary, search
 from openpilot.selfdrive.navigation.helpers import latest_gps_source
@@ -52,16 +52,24 @@ def open_destination_search(hint: str = "enter address...", save_as: str | None 
   gui_app.push_widget(SearchDialog(hint, text, lambda query: gui_app.push_widget(DestinationResults(query, hint, save_as))))
 
 
+def saved_position(data: bytes | None) -> tuple[float, float] | None:
+  # ubloxd saves its last fix as a gpsLocationExternal event
+  if not data:
+    return None
+  try:
+    with log.Event.from_bytes(data) as evt:
+      gps = evt.gpsLocationExternal
+      return (gps.latitude, gps.longitude) if gps.hasFix else None
+  except Exception:
+    return None
+
+
 def near() -> tuple[float, float] | None:
-  # gps only runs onroad, offroad navd's last saved position is the best guess
+  # gps only runs onroad, offroad the last saved fix is the best guess
   source = latest_gps_source(ui_state.sm)
   if source is not None:
     return ui_state.sm[source].latitude, ui_state.sm[source].longitude
-  try:
-    last = json.loads(ui_state.params.get("LastGPSPosition") or "")
-    return float(last["latitude"]), float(last["longitude"])
-  except (ValueError, KeyError, TypeError):
-    return None
+  return saved_position(ui_state.params.get("LastGPSPosition"))
 
 
 def format_distance(meters: float) -> str:

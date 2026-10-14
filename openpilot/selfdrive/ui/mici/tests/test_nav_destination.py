@@ -2,9 +2,10 @@ from unittest.mock import call, patch
 
 import pytest
 
+import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.selfdrive.navigation.geocode import Place
-from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, pick_place, picker_visible
+from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, pick_place, picker_visible, saved_position
 from openpilot.selfdrive.ui.ui_state import ui_state
 
 
@@ -45,3 +46,13 @@ def test_pick_written_immediately():
   with patch.object(ui_state, "params") as params:
     pick_place(place, save_as="NavWork")
   assert params.put.call_args_list == [call("NavWork", place.to_param(), block=True), call("NavDestination", place.to_param(), block=True)]
+
+
+def test_saved_position_from_ubloxd():
+  # ubloxd saves its last fix as a capnp event, offroad search biases results around it
+  msg = messaging.new_message('gpsLocationExternal')
+  msg.gpsLocationExternal.hasFix = True
+  msg.gpsLocationExternal.latitude, msg.gpsLocationExternal.longitude = 32.75, -117.19
+  assert saved_position(msg.to_bytes()) == pytest.approx((32.75, -117.19))
+  assert saved_position(None) is None
+  assert saved_position(b'{"latitude": 32.75}') is None  # the old json format

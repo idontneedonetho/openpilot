@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 import os
 
 import numpy as np
@@ -20,7 +19,6 @@ REROUTE_COUNTER_MIN = 3
 ROUTE_RESEND_PERIOD = 10  # updates (seconds); a restarted mapsd gets the route within this
 RECOMPUTE_HOLD = 10  # updates (seconds) between route requests
 RETRY_HOLD = 2  # updates (seconds) before retrying a failed route request
-LAST_POSITION_PERIOD = 60  # updates (seconds) between saving the position for offroad destination search
 
 
 def set_banner(instruction, banners, distance_to_maneuver):
@@ -67,8 +65,6 @@ class RouteEngine:
     if source is not None:
       gps = self.sm[source]
       self.last_position, self.last_bearing = (gps.longitude, gps.latitude), gps.bearingDeg
-      if self.sm.frame % LAST_POSITION_PERIOD == 0:
-        self.params.put("LastGPSPosition", json.dumps({"latitude": gps.latitude, "longitude": gps.longitude}))
     route = self.route
     try:
       self.recompute_route(gps_ok=source is not None)

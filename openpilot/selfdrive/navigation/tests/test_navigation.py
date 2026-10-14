@@ -1,5 +1,4 @@
 import gzip
-import json
 import re
 import struct
 import tempfile
@@ -396,16 +395,6 @@ class TestRouteEngine(unittest.TestCase):
       self.sm.recv_time = dict.fromkeys(self.sm.valid, time.monotonic() - 3)  # or stale
       self.engine.update()
       self.assertEqual(self.engine.last_position, (2, 2))
-
-  def test_saves_last_position(self):
-    self.sm.__getitem__.return_value = SimpleNamespace(hasFix=True, latitude=32.75, longitude=-117.19, bearingDeg=0)
-    with patch('requests.get', return_value=self.response):
-      self.sm.frame = 1
-      self.engine.update()
-      self.assertNotIn('LastGPSPosition', self.values)
-      self.sm.frame = 60
-      self.engine.update()
-    self.assertEqual(json.loads(self.values['LastGPSPosition']), {'latitude': 32.75, 'longitude': -117.19})
 
 
 class TestGeocode(unittest.TestCase):
