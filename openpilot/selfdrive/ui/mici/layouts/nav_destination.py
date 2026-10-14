@@ -40,7 +40,7 @@ def card_text(name: str, saved: dict | None) -> tuple[str, str]:
   # a saved place shows its name and that holding picks another, an unset one that a tap sets it
   if saved is None:
     return name, "tap to set"
-  return saved.get("place_name") or name, "hold to change"
+  return saved.get("place_name") or name, "hold to edit"
 
 
 def set_destination(destination: dict):
@@ -120,8 +120,8 @@ class NavCard(Widget):
 
 
 class IconCard(NavCard):
-  TITLE_SIZE, HINT_SIZE = 28, 22
-  PAD = 14
+  TITLE_SIZE, HINT_SIZE = 24, 20
+  PAD = 8
 
   def __init__(self, icon: str, icon_width: int, icon_height: int):
     super().__init__(0, 0)

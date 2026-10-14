@@ -61,5 +61,5 @@ def test_saved_position_from_ubloxd():
 def test_card_text():
   # holding to pick home or work again wasn't discoverable, the card says it
   assert card_text("home", None) == ("home", "tap to set")
-  assert card_text("home", HOME) == ("3911 Harney Street", "hold to change")
-  assert card_text("work", {"latitude": 1, "longitude": 2}) == ("work", "hold to change")
+  assert card_text("home", HOME) == ("3911 Harney Street", "hold to edit")
+  assert card_text("work", {"latitude": 1, "longitude": 2}) == ("work", "hold to edit")
