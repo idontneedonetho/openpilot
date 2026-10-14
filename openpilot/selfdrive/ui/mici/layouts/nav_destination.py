@@ -36,6 +36,13 @@ def active_card(destination: dict | None, home: dict | None, work: dict | None) 
   return "home" if destination == home else "work" if destination == work else "search"
 
 
+def card_text(name: str, saved: dict | None) -> tuple[str, str]:
+  # a saved place shows its name and that holding picks another, an unset one that a tap sets it
+  if saved is None:
+    return name, "tap to set"
+  return saved.get("place_name") or name, "hold to change"
+
+
 def set_destination(destination: dict):
   ui_state.params.put("NavDestination", destination, block=True)
   ui_state.nav_destination = destination
@@ -113,14 +120,30 @@ class NavCard(Widget):
 
 
 class IconCard(NavCard):
+  TITLE_SIZE, HINT_SIZE = 28, 22
+  PAD = 14
+
   def __init__(self, icon: str, icon_width: int, icon_height: int):
     super().__init__(0, 0)
     self._icon = gui_app.texture(ICONS + icon, icon_width, icon_height)
+    self._bold, self._roman = gui_app.font(FontWeight.BOLD), gui_app.font(FontWeight.ROMAN)
     self.active = False
+    self.title = ""
+    self.hint = ""
 
   def _draw_content(self, rect: rl.Rectangle):
-    pos = rl.Vector2(rect.x + (rect.width - self._icon.width) / 2, rect.y + (rect.height - self._icon.height) / 2)
-    rl.draw_texture_ex(self._icon, pos, 0, 1, GREEN if self.active else rl.WHITE)
+    # the icon, and under it what the card is and what a tap or hold does
+    text_h = self.TITLE_SIZE + (self.HINT_SIZE + 4 if self.hint else 0) + 10
+    top = rect.y + (rect.height - self._icon.height - text_h) / 2
+    rl.draw_texture_ex(self._icon, rl.Vector2(rect.x + (rect.width - self._icon.width) / 2, top), 0, 1, GREEN if self.active else rl.WHITE)
+    y = top + self._icon.height + 10
+    for text, font, size, color in ((self.title, self._bold, self.TITLE_SIZE, rl.WHITE), (self.hint, self._roman, self.HINT_SIZE, GREY)):
+      if not text:
+        continue
+      text = fit(font, text, size, rect.width - 2 * self.PAD)
+      width = measure_text_cached(font, text, size).x
+      rl.draw_text_ex(font, text, rl.Vector2(rect.x + (rect.width - width) / 2, y), size, 0, color)
+      y += size + 4
 
 
 class DestinationPicker(Widget):
@@ -152,6 +175,9 @@ class DestinationPicker(Widget):
     active = active_card(ui_state.nav_destination, ui_state.nav_home, ui_state.nav_work)
     for name, card in (("home", self._home), ("work", self._work), ("search", self._search)):
       card.active = name == active
+    for card, name, saved in ((self._home, "home", ui_state.nav_home), (self._work, "work", ui_state.nav_work)):
+      card.title, card.hint = card_text(name, saved)
+    self._search.title = "search"
 
     # two wide cards and a narrow one, like the settings scroller's first cards
     unit = (rect.width - 2 * self.MARGIN - 2 * self.GAP) / 4

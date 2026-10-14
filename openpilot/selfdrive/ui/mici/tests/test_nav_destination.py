@@ -5,7 +5,7 @@ import pytest
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.selfdrive.navigation.geocode import Place
-from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, pick_place, picker_visible, saved_position
+from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, card_text, pick_place, picker_visible, saved_position
 from openpilot.selfdrive.ui.ui_state import ui_state
 
 
@@ -56,3 +56,10 @@ def test_saved_position_from_ubloxd():
   assert saved_position(msg.to_bytes()) == pytest.approx((32.75, -117.19))
   assert saved_position(None) is None
   assert saved_position(b'{"latitude": 32.75}') is None  # the old json format
+
+
+def test_card_text():
+  # holding to pick home or work again wasn't discoverable, the card says it
+  assert card_text("home", None) == ("home", "tap to set")
+  assert card_text("home", HOME) == ("3911 Harney Street", "hold to change")
+  assert card_text("work", {"latitude": 1, "longitude": 2}) == ("work", "hold to change")
