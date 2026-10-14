@@ -17,7 +17,7 @@ MATCH_DISTANCE = 1.5  # meters a lane line can move between frames and still be 
 OUTER_LINE_PROB = 0.3  # the outer lines only show when the model sees a lane there
 LANE_CHANGE_LENGTH = 0.5  # part of the arrow the lane change crosses over in
 COAST_ACCEL = 0.25  # m/s^2 below which the path stays solid
-FULL_ACCEL = 1.5  # m/s^2 where the path is fully broken up
+FULL_ACCEL = 1.0  # m/s^2 where the path is fully broken up
 PULSE_PERIOD = 44  # px from one bright band to the next
 PULSE_SPEED = 70  # px/s the bands flow at full accel, slower with less
 
@@ -157,7 +157,7 @@ class ArrowView(Widget):
   def _draw_path(self, px: np.ndarray, py: np.ndarray, color: rl.Color):
     # solid coasting, accelerating or braking the path dims and bright bands flow along it
     t = self._broken()
-    _strip(px, py, PATH_WIDTH, _blend(color, rl.Color(color.r, color.g, color.b, 90), t))
+    _strip(px, py, PATH_WIDTH, _blend(color, rl.Color(color.r, color.g, color.b, 40), t))
     band = rl.Color(color.r, color.g, color.b, int(255 * t))
     if band.a < 3:
       return
