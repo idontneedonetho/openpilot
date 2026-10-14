@@ -12,7 +12,7 @@ from openpilot.selfdrive.ui.mici.onroad.long_indicator import LongIndicator
 from openpilot.selfdrive.ui.mici.onroad.model_renderer import ModelRenderer
 from openpilot.selfdrive.ui.mici.onroad.arrow_view import ArrowView
 from openpilot.selfdrive.ui.mici.onroad.navigation import NavigationPanel
-from openpilot.selfdrive.ui.mici.layouts.nav_destination import DestinationPicker
+from openpilot.selfdrive.ui.mici.layouts.nav_destination import DestinationPicker, picker_visible
 from openpilot.selfdrive.ui.mici.onroad.confidence_ball import ConfidenceBall
 from openpilot.selfdrive.ui.mici.onroad.cameraview import CameraView
 from openpilot.system.ui.lib.application import FontWeight, gui_app, MousePos, MouseEvent, TextAlignment, TextAlignmentVertical
@@ -214,10 +214,15 @@ class AugmentedRoadView(CameraView):
       super()._handle_mouse_release(mouse_pos)
 
   def _render(self, _):
-    # Draw text if not onroad
+    self._picker_shown = picker_visible(ui_state.started, ui_state.navigation_enabled, ui_state.nav_destination_set)
+
+    # Draw text if not onroad, or the destination picker with navigation on
     if not ui_state.started:
       rl.draw_rectangle_rec(self.rect, rl.BLACK)
-      self._offroad_label.render(self._rect)
+      if self._picker_shown:
+        self._destination_picker.render(self._rect)
+      else:
+        self._offroad_label.render(self._rect)
       return
 
     self._switch_stream_if_needed(ui_state.sm)
@@ -230,7 +235,6 @@ class AugmentedRoadView(CameraView):
     hidden = {'laneChange', 'preLaneChangeLeft', 'preLaneChangeRight'} if nav_view else set()
     self._alert_renderer.hidden_events = self._driver_state_renderer.hidden_events = self._long_indicator.hidden_events = hidden
     alert_to_render, not_animating_out = self._alert_renderer.will_render()
-    self._picker_shown = nav_view and not ui_state.nav_destination_set
 
     # navigation: the status icons on the left, then the arrow, the map in the right two thirds, with alerts on top
     # without a destination the map's place has home, work and search

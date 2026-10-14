@@ -10,8 +10,8 @@ from openpilot.system.ui.widgets import Widget
 DISTANCE = 50.0  # meters the arrow spans
 LATERAL_SCALE = 14.0  # px per meter on a REF_WIDTH panel, lateral is stretched and distance squished to fit the panel
 REF_WIDTH = 179
-BOTTOM_MARGIN = 35
-TOP_MARGIN = 45  # lanes and arrow take about two thirds of the height, like the design
+BOTTOM_MARGIN = 22
+TOP_MARGIN = 28
 SMOOTH_RC = 0.25  # seconds
 MATCH_DISTANCE = 1.5  # meters a lane line can move between frames and still be the same line
 OUTER_LINE_PROB = 0.3  # the outer lines only show when the model sees a lane there

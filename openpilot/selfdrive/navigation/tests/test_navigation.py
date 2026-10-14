@@ -19,7 +19,7 @@ import openpilot.cereal.messaging as messaging
 from openpilot.common.prefix import OpenpilotPrefix
 from openpilot.selfdrive.navigation.geocode import add_route_summary, parse_place, search
 from openpilot.selfdrive.navigation.mapsd import MapsD
-from openpilot.selfdrive.navigation.navd import REROUTE_COUNTER_MIN, RETRY_HOLD, ROUTE_RESEND_PERIOD, RouteEngine, set_banner
+from openpilot.selfdrive.navigation.navd import RECOMPUTE_HOLD, REROUTE_COUNTER_MIN, RETRY_HOLD, ROUTE_RESEND_PERIOD, RouteEngine, set_banner
 from openpilot.selfdrive.navigation.pmtiles import PMTiles, decode_directory, tile_id
 from openpilot.selfdrive.navigation.renderer import MAJOR, MEDIUM, MINOR, SIZE, STREET, TRACK, MapRenderer, draw_segments, mercator, project, stroke_widths
 from openpilot.selfdrive.navigation.route import RouteTracker
@@ -331,13 +331,46 @@ class TestRouteEngine(unittest.TestCase):
     self.engine.last_position = (0.0012, 0)  # past the first maneuver
     self.engine.send_instruction()
     self.assertEqual(self.engine.step_idx, 1)
-    self.engine.last_position = (0.00215, 0)  # 17 m past the destination: arrived, but the route is kept nearby
-    self.engine.send_instruction()
-    self.assertIsNotNone(self.engine.route)
-    self.engine.last_position = (0.0024, 0)  # driving away from the destination
-    self.engine.send_instruction()
+    self.assertIn('NavDestination', self.values)
+
+  def assert_arrived(self):
     self.assertIsNone(self.engine.route)
     self.assertNotIn('NavDestination', self.values)
+
+  def test_arrival_parked_short_of_destination(self):
+    # parking 11 m before the destination point never got past it, so it was never cleared
+    self.load_route()
+    for x in (0.0012, 0.0019):
+      self.engine.last_position = (x, 0)
+      self.engine.send_instruction()
+    self.assert_arrived()
+
+  def test_arrival_driving_past_destination(self):
+    # 17 m past it used to keep the route until 25 m away
+    self.load_route()
+    for x in (0.0012, 0.00215):
+      self.engine.last_position = (x, 0)
+      self.engine.send_instruction()
+    self.assert_arrived()
+
+  def test_arrived_destination_stays_cleared(self):
+    self.load_route()
+    self.engine.last_position = (0.0019, 0)
+    self.engine.send_instruction()
+    self.sm.frame = 1
+    with patch('requests.get', return_value=self.response) as get:
+      for _ in range(RECOMPUTE_HOLD + 2):
+        self.engine.update()
+      get.assert_not_called()
+    self.assert_arrived()
+    self.assertFalse(self.last_message('navInstruction').valid)
+
+  def test_not_arrived_far_from_destination(self):
+    self.load_route()
+    self.engine.last_position = (0.0016, 0)  # 44 m of route left
+    self.engine.send_instruction()
+    self.assertIsNotNone(self.engine.route)
+    self.assertIn('NavDestination', self.values)
 
   def test_failed_request_keeps_route_and_retries(self):
     self.load_route()

@@ -11,9 +11,10 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.navigation.helpers import latest_gps_source
-from openpilot.selfdrive.navigation.route import RouteTracker, along_path, local_meters
+from openpilot.selfdrive.navigation.route import RouteTracker, along_path
 
 REROUTE_DISTANCE = 25
+ARRIVED_DISTANCE = 30  # meters of route left when the destination counts as reached, parking short of it included
 MANEUVER_TRANSITION_THRESHOLD = 10
 REROUTE_COUNTER_MIN = 3
 ROUTE_RESEND_PERIOD = 10  # updates (seconds); a restarted mapsd gets the route within this
@@ -187,18 +188,17 @@ class RouteEngine:
 
     self.pm.send('navInstruction', msg)
 
-    # Transition to next route segment
-    if distance_to_maneuver_along_geometry < -MANEUVER_TRANSITION_THRESHOLD:
-      if self.step_idx + 1 < len(self.route):
-        self.step_idx += 1
-        self.recompute_hold = 0
-      else:
-        cloudlog.warning("Destination reached")
+    # reached, stopped at it or driven past it: gone for good, the UI offers a new destination
+    if msg.navInstruction.distanceRemaining < ARRIVED_DISTANCE:
+      cloudlog.warning("Destination reached")
+      self.params.remove("NavDestination")
+      self.clear_route()
+      return
 
-        # Clear route if driving away from destination
-        if np.linalg.norm(local_meters(self.last_position, self.nav_destination)) > REROUTE_DISTANCE:
-          self.params.remove("NavDestination")
-          self.clear_route()
+    # Transition to next route segment
+    if distance_to_maneuver_along_geometry < -MANEUVER_TRANSITION_THRESHOLD and self.step_idx + 1 < len(self.route):
+      self.step_idx += 1
+      self.recompute_hold = 0
 
   def send_route(self):
     coords = np.concatenate(self.route_geometry) if self.route_geometry is not None else np.empty((0, 2))

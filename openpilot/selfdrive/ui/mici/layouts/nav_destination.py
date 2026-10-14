@@ -23,6 +23,11 @@ GREY = rl.Color(255, 255, 255, int(255 * 0.55))
 KM_PER_MILE = 1.609344
 
 
+def picker_visible(started: bool, navigation_enabled: bool, destination_set: bool) -> bool:
+  # offroad it's always there to pick or change the destination, onroad until one is set
+  return navigation_enabled and (not started or not destination_set)
+
+
 def set_destination(destination: dict):
   ui_state.params.put("NavDestination", destination)
   ui_state.nav_destination = destination
