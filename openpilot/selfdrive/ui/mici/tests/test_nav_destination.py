@@ -1,7 +1,11 @@
+from unittest.mock import call, patch
+
 import pytest
 
 from openpilot.common.params import Params
-from openpilot.selfdrive.ui.mici.layouts.nav_destination import picker_visible
+from openpilot.selfdrive.navigation.geocode import Place
+from openpilot.selfdrive.ui.mici.layouts.nav_destination import active_card, pick_place, picker_visible
+from openpilot.selfdrive.ui.ui_state import ui_state
 
 
 @pytest.mark.parametrize("started, navigation_enabled, destination_set, visible", [
@@ -19,3 +23,25 @@ def test_picker_visible(started, navigation_enabled, destination_set, visible):
 def test_no_default_destination():
   # a default address hid the picker, and came back after every arrival
   assert Params().get_default_value("NavDestination") is None
+
+
+HOME = {"latitude": 32.75, "longitude": -117.19, "place_name": "3911 Harney Street", "place_details": "Old Town, San Diego"}
+PARK = {"latitude": 32.73, "longitude": -117.14, "place_name": "Balboa Park", "place_details": "San Diego"}
+
+
+@pytest.mark.parametrize("destination, home, work, active", [
+  (None, HOME, None, None),
+  (HOME, HOME, PARK, "home"),
+  (PARK, HOME, PARK, "work"),
+  (PARK, HOME, None, "search"),  # a searched destination lights the pin
+])
+def test_active_card(destination, home, work, active):
+  assert active_card(destination, home, work) == active
+
+
+def test_pick_written_immediately():
+  # params writes are async by default, the periodic reload right after a pick read no destination and showed the picker again
+  place = Place(name=PARK["place_name"], details=PARK["place_details"], latitude=PARK["latitude"], longitude=PARK["longitude"])
+  with patch.object(ui_state, "params") as params:
+    pick_place(place, save_as="NavWork")
+  assert params.put.call_args_list == [call("NavWork", place.to_param(), block=True), call("NavDestination", place.to_param(), block=True)]

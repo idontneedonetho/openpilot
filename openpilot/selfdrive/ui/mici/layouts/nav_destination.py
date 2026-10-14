@@ -20,6 +20,7 @@ ICONS = "icons_mici/navigation/"
 CARD_BORDER = 48  # px of the card texture's corners and glow kept unscaled
 TEXT_SIZE = 35
 GREY = rl.Color(255, 255, 255, int(255 * 0.55))
+GREEN = rl.Color(70, 230, 90, 255)
 KM_PER_MILE = 1.609344
 
 
@@ -28,14 +29,21 @@ def picker_visible(started: bool, navigation_enabled: bool, destination_set: boo
   return navigation_enabled and (not started or not destination_set)
 
 
+def active_card(destination: dict | None, home: dict | None, work: dict | None) -> str | None:
+  # which picker card stands for the current destination, the search pin for anything not saved
+  if destination is None:
+    return None
+  return "home" if destination == home else "work" if destination == work else "search"
+
+
 def set_destination(destination: dict):
-  ui_state.params.put("NavDestination", destination)
+  ui_state.params.put("NavDestination", destination, block=True)
   ui_state.nav_destination = destination
 
 
 def pick_place(place: Place, save_as: str | None = None):
   if save_as is not None:
-    ui_state.params.put(save_as, place.to_param())
+    ui_state.params.put(save_as, place.to_param(), block=True)
     setattr(ui_state, SAVED_PLACES[save_as], place.to_param())
   set_destination(place.to_param())
 
@@ -100,10 +108,11 @@ class IconCard(NavCard):
   def __init__(self, icon: str, icon_width: int, icon_height: int):
     super().__init__(0, 0)
     self._icon = gui_app.texture(ICONS + icon, icon_width, icon_height)
+    self.active = False
 
   def _draw_content(self, rect: rl.Rectangle):
     pos = rl.Vector2(rect.x + (rect.width - self._icon.width) / 2, rect.y + (rect.height - self._icon.height) / 2)
-    rl.draw_texture_ex(self._icon, pos, 0, 1, rl.WHITE)
+    rl.draw_texture_ex(self._icon, pos, 0, 1, GREEN if self.active else rl.WHITE)
 
 
 class DestinationPicker(Widget):
@@ -131,6 +140,11 @@ class DestinationPicker(Widget):
       set_destination(saved)
 
   def _render(self, rect: rl.Rectangle):
+    # the card of the current destination is green, the pin for a searched one
+    active = active_card(ui_state.nav_destination, ui_state.nav_home, ui_state.nav_work)
+    for name, card in (("home", self._home), ("work", self._work), ("search", self._search)):
+      card.active = name == active
+
     # two wide cards and a narrow one, like the settings scroller's first cards
     unit = (rect.width - 2 * self.MARGIN - 2 * self.GAP) / 4
     x, y, h = rect.x + self.MARGIN, rect.y + self.MARGIN, rect.height - 2 * self.MARGIN
