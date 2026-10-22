@@ -191,7 +191,7 @@ class RadarD:
 
     self.ready = False
 
-  def update(self, sm: messaging.SubMaster, rr: car.RadarData):
+  def update(self, sm: messaging.SubMaster, rr: car.RadarData, radar_disabled: bool = False):
     self.ready = sm.seen['modelV2']
 
     if sm.recv_frame['carState'] != self.last_v_ego_frame:
@@ -199,7 +199,11 @@ class RadarD:
       self.v_ego_hist.append(self.v_ego)
       self.last_v_ego_frame = sm.recv_frame['carState']
 
-    ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
+    # VOACC dev mode: ignore all radar points, leads come from vision only
+    if radar_disabled:
+      ar_pts = {}
+    else:
+      ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
 
     # *** remove missing points from meta data ***
     for ids in list(self.tracks.keys()):
@@ -256,7 +260,8 @@ def main() -> None:
 
   # wait for stats about the car to come in from controls
   cloudlog.info("radard is waiting for CarParams")
-  CP = messaging.log_from_bytes(Params().get("CarParams", block=True), car.CarParams)
+  params = Params()
+  CP = messaging.log_from_bytes(params.get("CarParams", block=True), car.CarParams)
   cloudlog.info("radard got CarParams")
 
   # *** setup messaging
@@ -268,7 +273,7 @@ def main() -> None:
   while 1:
     sm.update()
 
-    RD.update(sm, sm['radarTracks'])
+    RD.update(sm, sm['radarTracks'], params.get_bool("VisionOnlyACC"))
     RD.publish(pm)
 
 
