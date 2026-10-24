@@ -1,6 +1,7 @@
 import numpy as np
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.realtime import DT_CTRL, DT_MDL
+from opendbc.car.lateral import MAX_LATERAL_JERK
 
 MIN_SPEED = 1.0
 CONTROL_N = 17
@@ -8,8 +9,8 @@ CONTROL_N = 17
 MAX_CURVATURE = 0.2
 MIN_STABLE_DELAY = 0.3
 
-# EU guidelines
-MAX_LATERAL_JERK = 5.0  # m/s^3
+# MAX_LATERAL_JERK comes from opendbc (3.0 + bank tolerance, ~3.6 m/s^3) and matches the
+# limit enforced by the safety model, so the curvature satisfies what the car can actually receive.
 MAX_LATERAL_ACCEL_NO_ROLL = 3.0  # m/s^2
 
 
@@ -25,7 +26,8 @@ def smooth_value(val, prev_val, tau, dt=DT_MDL):
   return alpha * val + (1 - alpha) * prev_val
 
 def clip_curvature(v_ego, prev_curvature, new_curvature, roll, car_max_lat_accel=None) -> tuple[float, bool]:
-  # This function respects ISO lateral jerk and acceleration limits + a max curvature
+  # This function respects the safety-model lateral jerk limit, the lateral acceleration
+  # limit (ISO / car capability, whichever is lower) and a max curvature
   v_ego = max(v_ego, MIN_SPEED)
   max_curvature_rate = MAX_LATERAL_JERK / (v_ego ** 2)  # inexact calculation, check https://github.com/commaai/openpilot/pull/24755
   new_curvature = np.clip(new_curvature,
