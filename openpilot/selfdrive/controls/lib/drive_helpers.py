@@ -24,7 +24,7 @@ def smooth_value(val, prev_val, tau, dt=DT_MDL):
   alpha = 1 - np.exp(-dt/tau) if tau > 0 else 1
   return alpha * val + (1 - alpha) * prev_val
 
-def clip_curvature(v_ego, prev_curvature, new_curvature, roll) -> tuple[float, bool]:
+def clip_curvature(v_ego, prev_curvature, new_curvature, roll, car_max_lat_accel=None) -> tuple[float, bool]:
   # This function respects ISO lateral jerk and acceleration limits + a max curvature
   v_ego = max(v_ego, MIN_SPEED)
   max_curvature_rate = MAX_LATERAL_JERK / (v_ego ** 2)  # inexact calculation, check https://github.com/commaai/openpilot/pull/24755
@@ -32,9 +32,15 @@ def clip_curvature(v_ego, prev_curvature, new_curvature, roll) -> tuple[float, b
                           prev_curvature - max_curvature_rate * DT_CTRL,
                           prev_curvature + max_curvature_rate * DT_CTRL)
 
+  # Nominal lateral accel limit: min of the ISO limit and the car's actual capability,
+  # so the curvature setpoint is bounded to what the car can physically achieve.
+  if car_max_lat_accel is None or car_max_lat_accel <= 0:
+    car_max_lat_accel = MAX_LATERAL_ACCEL_NO_ROLL
+  lat_accel_limit = min(car_max_lat_accel, MAX_LATERAL_ACCEL_NO_ROLL)
+
   roll_compensation = roll * ACCELERATION_DUE_TO_GRAVITY
-  max_lat_accel = MAX_LATERAL_ACCEL_NO_ROLL + roll_compensation
-  min_lat_accel = -MAX_LATERAL_ACCEL_NO_ROLL + roll_compensation
+  max_lat_accel = lat_accel_limit + roll_compensation
+  min_lat_accel = -lat_accel_limit + roll_compensation
   new_curvature, limited_accel = clamp(new_curvature, min_lat_accel / v_ego ** 2, max_lat_accel / v_ego ** 2)
 
   new_curvature, limited_max_curv = clamp(new_curvature, -MAX_CURVATURE, MAX_CURVATURE)
