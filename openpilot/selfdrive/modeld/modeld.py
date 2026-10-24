@@ -299,7 +299,7 @@ def main(demo=False):
   config_realtime_process(7, 54)
 
   # messaging
-  pub_socks = ["modelV2", "drivingModelData", "cameraOdometry"] + (["chestnutGpuState"] if CHESTNUT else [])
+  pub_socks = ["modelV2", "drivingModelData", "cameraOdometry", "lateralPlanDEPRECATED"] + (["chestnutGpuState"] if CHESTNUT else [])
   pm = PubMaster(pub_socks)
   sm = SubMaster(["deviceState", "carState", "narrowRoadCameraState", "extrinsicsCalibration", "driverMonitoringState",
                   "carControl", "controlsState", "lateralDelay"])
@@ -458,6 +458,22 @@ def main(demo=False):
       pm.send('modelV2', modelv2_send)
       pm.send('drivingModelData', drivingdata_send)
       pm.send('cameraOdometry', posenet_send)
+
+      # Publish the model's predicted curvature horizon for anticipatory lateral feedforward.
+      # Reuses the (deprecated) LateralPlan socket: psis/curvatures/curvatureRates over the plan horizon.
+      lp_send = messaging.new_message('lateralPlanDEPRECATED')
+      lp_send.valid = True
+      if 'plan' in model_output:
+        plan = model_output['plan'][0]
+        psis = plan[:, Plan.T_FROM_CURRENT_EULER][:, 2]
+        yaw_rates = plan[:, Plan.ORIENTATION_RATE][:, 2]
+        v_ego_clip = max(v_ego, 1.0)
+        curvatures_path = yaw_rates / v_ego_clip
+        curvature_rates_path = np.gradient(curvatures_path, np.asarray(ModelConstants.T_IDXS))
+        lp_send.lateralPlanDEPRECATED.psis = psis.tolist()
+        lp_send.lateralPlanDEPRECATED.curvatures = curvatures_path.tolist()
+        lp_send.lateralPlanDEPRECATED.curvatureRates = curvature_rates_path.tolist()
+      pm.send('lateralPlanDEPRECATED', lp_send)
     last_vipc_frame_id = meta_main.frame_id
 
 if __name__ == "__main__":

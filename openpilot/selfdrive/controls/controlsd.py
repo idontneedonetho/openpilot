@@ -39,7 +39,7 @@ class Controls:
     self.CI = interfaces[self.CP.carFingerprint](self.CP)
 
     self.sm = messaging.SubMaster(['lateralDelay', 'vehicleParameters', 'lateralTorqueParameters', 'modelV2', 'selfdriveState',
-                                   'extrinsicsCalibration', 'deviceMotion', 'longitudinalPlan', 'lateralManeuverPlan', 'carState', 'carOutput',
+                                   'extrinsicsCalibration', 'deviceMotion', 'longitudinalPlan', 'lateralManeuverPlan', 'lateralPlanDEPRECATED', 'carState', 'carOutput',
                                    'driverMonitoringState', 'onroadEvents', 'driverAssistance'], poll='selfdriveState')
     self.pm = messaging.PubMaster(['carControl', 'controlsState'])
 
@@ -128,6 +128,8 @@ class Controls:
     lat_delay = self.sm["lateralDelay"].lateralDelay + LAT_SMOOTH_SECONDS
 
     actuators.curvature = self.desired_curvature
+    # Route the model's curvature-rate horizon to the lateral controller for anticipatory feedforward
+    self.LaC.lat_horizon = list(self.sm['lateralPlanDEPRECATED'].curvatureRates) if self.sm.valid['lateralPlanDEPRECATED'] else []
     steer, lateral_output, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
                                                      self.steer_limited_by_safety, self.desired_curvature,
                                                      curvature_limited, lat_delay)
