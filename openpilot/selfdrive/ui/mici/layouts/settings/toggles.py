@@ -25,6 +25,9 @@ class TogglesLayoutMici(NavScroller):
     ldw_toggle = BigParamControl("lane departure warnings", "IsLdwEnabled",
                                  description="Warn when you drift across a detected lane line.\n" +
                                              "Only above 31 mph (50 km/h), with no turn signal.")
+    voacc_toggle = BigParamControl("vision-only acc", "VisionOnlyACC",
+                                   description="Disables radar lead tracking; openpilot tracks lead cars with the vision model only (VOACC).\n" +
+                                               "Takes effect immediately, no restart needed.")
     always_on_dm_toggle = BigParamControl("always-on driver monitor", "AlwaysOnDM", description="Monitor the driver even when openpilot is not engaged.")
     record_front = BigParamControl("record & upload cabin camera", "RecordFront",
                                    description_icon=gui_app.texture("icons_mici/settings/device/cameras.png", 64, 64),
@@ -42,6 +45,7 @@ class TogglesLayoutMici(NavScroller):
       self._initial_cruise_speed,
       is_metric_toggle,
       ldw_toggle,
+      voacc_toggle,
       always_on_dm_toggle,
       record_front,
       record_mic,
@@ -52,6 +56,7 @@ class TogglesLayoutMici(NavScroller):
     self._refresh_toggles = (
       ("IsMetric", is_metric_toggle),
       ("IsLdwEnabled", ldw_toggle),
+      ("VisionOnlyACC", voacc_toggle),
       ("AlwaysOnDM", always_on_dm_toggle),
       ("RecordFront", record_front),
       ("RecordAudio", record_mic),
