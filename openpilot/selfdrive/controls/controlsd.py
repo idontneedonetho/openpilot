@@ -2,6 +2,8 @@
 import math
 from numbers import Number
 
+import numpy as np
+
 from openpilot.cereal import log
 from opendbc.car.structs import car
 import openpilot.cereal.messaging as messaging
@@ -128,6 +130,15 @@ class Controls:
     lat_delay = self.sm["lateralDelay"].lateralDelay + LAT_SMOOTH_SECONDS
 
     actuators.curvature = self.desired_curvature
+    # Anticipatory jerk feedforward: curvature-rate horizon from the model's predicted yaw rates.
+    # modelV2.orientationRate (non-deprecated) carries the plan's yaw-rate path over T_IDXS;
+    # curvature = yaw_rate / vEgo, and d(curvature)/dt * vEgo^2 is the anticipated lateral jerk.
+    if self.sm.valid['modelV2'] and len(self.sm['modelV2'].orientationRate.z) > 1:
+      yaw_rates = np.asarray(self.sm['modelV2'].orientationRate.z)
+      v_ego = max(CS.vEgo, 1.0)
+      self.LaC.lat_horizon = np.gradient(yaw_rates / v_ego, np.asarray(self.sm['modelV2'].orientationRate.t)).tolist()
+    else:
+      self.LaC.lat_horizon = []
     steer, lateral_output, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
                                                      self.steer_limited_by_safety, self.desired_curvature,
                                                      curvature_limited, lat_delay)
