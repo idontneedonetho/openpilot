@@ -53,6 +53,12 @@ class LongitudinalPlanner:
     if sm['controlsState'].forceDecel:
       v_cruise = 0.0
 
+    # Taco Bell curve speed hack: cap set speed by the sharpest upcoming curve
+    if len(sm['modelV2'].velocity.x) and len(sm['modelV2'].orientationRate.z):
+      model_v = np.asarray(sm['modelV2'].velocity.x)
+      curvature = np.where(model_v >= 2.0, np.asarray(sm['modelV2'].orientationRate.z) / np.maximum(model_v, 0.3), 0.0)
+      v_cruise = min(v_cruise, max(float(np.sqrt(np.interp(v_ego, [5., 10., 20.], [1.5, 2.0, 3.0]) / (np.abs(curvature).max() + 1e-3)) - 2.0), 0.0))
+
     long_control_off = sm['controlsState'].longControlState == LongCtrlState.off
 
     # Reset current state when not engaged, or user is controlling the speed
