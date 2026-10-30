@@ -9,8 +9,17 @@ CONTROL_N_T_IDX = ModelConstants.T_IDXS[:CONTROL_N]
 
 LongCtrlState = car.CarControl.Actuators.LongControlState
 
+# Strong start: while stopped, openpilot holds the brakes. When the model decides to move,
+# a firm fixed acceleration request is sent. The push is held until the planner's own target
+# catches up to it (or retracts to zero, or the car passes V_EGO_START_MAX), so the handoff
+# to PID has no dip. Values are Toyota's historical starting-state tuning (~2021). Always active.
+START_ACCEL = 1.2      # m/s^2, firm acceleration to break static friction
+V_EGO_START_MAX = 3.0  # m/s, hard fallback: never hold the push past this speed
 
-def long_control_state_trans(active, long_control_state, should_stop, brake_pressed, cruise_standstill):
+
+def long_control_state_trans(active, long_control_state, v_ego,
+                             should_stop, brake_pressed, cruise_standstill,
+                             a_target=0.0):
   starting_condition = (not should_stop and
                         not cruise_standstill and
                         not brake_pressed)
@@ -23,10 +32,18 @@ def long_control_state_trans(active, long_control_state, should_stop, brake_pres
       if not starting_condition:
         long_control_state = LongCtrlState.stopping
       else:
-        long_control_state = LongCtrlState.pid
+        long_control_state = LongCtrlState.starting
 
     elif long_control_state == LongCtrlState.stopping:
       if starting_condition:
+        long_control_state = LongCtrlState.starting
+
+    elif long_control_state == LongCtrlState.starting:
+      if should_stop:
+        long_control_state = LongCtrlState.stopping
+      # Hold the push until the planner's target catches up to it (or retracts,
+      # or we pass the fallback speed), so the handoff to PID has no dip.
+      elif a_target >= START_ACCEL or a_target <= 0.0 or v_ego > V_EGO_START_MAX:
         long_control_state = LongCtrlState.pid
 
     elif long_control_state == LongCtrlState.pid:
@@ -51,8 +68,9 @@ class LongControl:
     self.pid.neg_limit = accel_limits[0]
     self.pid.pos_limit = accel_limits[1]
 
-    self.long_control_state = long_control_state_trans(active, self.long_control_state, should_stop,
-                                                       CS.brakePressed, CS.cruiseState.standstill)
+    self.long_control_state = long_control_state_trans(active, self.long_control_state, CS.vEgo,
+                                                       should_stop, CS.brakePressed,
+                                                       CS.cruiseState.standstill, a_target=a_target)
     if self.long_control_state == LongCtrlState.off:
       self.reset()
       output_accel = 0.
@@ -63,6 +81,10 @@ class LongControl:
         output_accel = min(output_accel, 0.0)
         # TODO: can we just go straight to stopAccel?
         output_accel -= 1.0 * DT_CTRL  # m/s^2/s while trying to stop
+      self.reset()
+
+    elif self.long_control_state == LongCtrlState.starting:
+      output_accel = START_ACCEL
       self.reset()
 
     else:  # LongCtrlState.pid
