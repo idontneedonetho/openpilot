@@ -144,4 +144,5 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ChestnutLoading", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | CLEAR_ON_IGNITION_ON, BOOL}},
     {"ChestnutRetry", {CLEAR_ON_MANAGER_START | CLEAR_ON_IGNITION_ON, BOOL}},
     {"Version", {PERSISTENT, STRING}},
+    {"VisionOnlyACC", {PERSISTENT, BOOL}},
 };
