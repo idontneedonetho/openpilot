@@ -7,6 +7,7 @@ from opendbc.car.lateral import FRICTION_THRESHOLD, get_friction
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
+from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.common.pid import PIDController
 
 # At higher speeds (25+mph) we can assume:
@@ -50,6 +51,7 @@ class LatControlTorque(LatControl):
     self.lat_accel_request_buffer = deque([0.] * self.lat_accel_request_buffer_len , maxlen=self.lat_accel_request_buffer_len)
     self.lookahead_frames = int(JERK_LOOKAHEAD_SECONDS / self.dt)
     self.jerk_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
+    self.lat_horizon = []  # curvature-rate horizon from the model (set by controlsd each step)
 
   def update_torque_parameters(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -81,6 +83,14 @@ class LatControlTorque(LatControl):
     lookahead_idx = int(np.clip(-delay_frames + self.lookahead_frames, -self.lat_accel_request_buffer_len+1, -2))
     raw_lateral_jerk = (self.lat_accel_request_buffer[lookahead_idx+1] - self.lat_accel_request_buffer[lookahead_idx-1]) / (2 * self.dt)
     desired_lateral_jerk = self.jerk_filter.update(raw_lateral_jerk)
+    # Anticipatory jerk feedforward from the model's predicted curvature-rate horizon.
+    # Blends with the reactive jerk (past setpoint rate) for a forward-looking, low-noise signal.
+    if len(self.lat_horizon) > 0:
+      t_idxs = np.asarray(ModelConstants.T_IDXS)
+      lookahead_time = lat_delay + JERK_LOOKAHEAD_SECONDS
+      hidx = min(int(np.argmin(np.abs(t_idxs - lookahead_time))), len(self.lat_horizon) - 1)
+      anticipatory_jerk = self.lat_horizon[hidx] * CS.vEgo ** 2
+      desired_lateral_jerk = 0.5 * desired_lateral_jerk + 0.5 * anticipatory_jerk
     gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
     ff = gravity_adjusted_future_lateral_accel
     # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
